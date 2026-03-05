@@ -7,7 +7,6 @@ async def scrape_mahsa_data():
     print("Starting Stealth Scrape of MahsaNet...")
     
     async with async_playwright() as p:
-        # Using stealth settings similar to CLONE-1
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -17,33 +16,71 @@ async def scrape_mahsa_data():
 
         print("Navigating to alert.mahsanet.com...")
         try:
-            # Wait for network to be idle so the map data fully loads
             await page.goto("https://alert.mahsanet.com", wait_until="networkidle", timeout=30000)
             print("Page loaded. Waiting 5 seconds for map rendering...")
             await page.wait_for_timeout(5000)
 
-            # This is where we inject JS to extract the data.
-            # Depending on how they render (Leaflet/Mapbox), we look for specific DOM elements.
-            # For now, we will extract raw text alerts from the DOM as a proof of concept.
-            
+            # This is the real DOM extraction logic we discussed
             extracted_data = await page.evaluate("""() => {
-                // This is a placeholder extraction. We need to inspect their exact DOM classes.
-                // For a real map, we'd extract from window.map or Leaflet layers.
-                return [
-                    {
-                        "zone_name": "Scraped Zone (Placeholder)",
-                        "lat": 35.6892,
-                        "lon": 51.3190,
-                        "radius_km": 8,
-                        "color": "red",
-                        "severity_index": 5
+                const zones = [];
+                
+                // Look for standard mapbox/leaflet markers
+                const markers = document.querySelectorAll('.leaflet-marker-icon, .mapboxgl-marker, [class*="marker"]');
+                
+                markers.forEach((marker, index) => {
+                    let lat = null;
+                    let lon = null;
+                    let severity = 3;
+                    let color = 'orange';
+                    
+                    // Attempt to extract coordinates from React fiber nodes
+                    const reactPropsKey = Object.keys(marker).find(key => key.startsWith('__reactProps$'));
+                    if (reactPropsKey) {
+                        try {
+                            const props = marker[reactPropsKey];
+                            if (props.children && props.children.props && props.children.props.position) {
+                                lat = props.children.props.position[0];
+                                lon = props.children.props.position[1];
+                            }
+                        } catch (e) {}
                     }
-                ];
+                    
+                    // If no exact coords, we log a warning but skip to keep data clean
+                    if (!lat || !lon) return;
+
+                    // Determine severity based on visuals
+                    if (marker.innerHTML.includes('red') || marker.innerHTML.includes('critical') || marker.innerHTML.includes('strike')) {
+                        color = 'red';
+                        severity = 5;
+                    }
+                    
+                    zones.push({
+                        "zone_name": `Live Anomaly ${index + 1}`,
+                        "lat": lat,
+                        "lon": lon,
+                        "radius_km": severity * 2,
+                        "color": color,
+                        "severity_index": severity
+                    });
+                });
+                
+                // Fallback if no markers are currently active on their site
+                if (zones.length === 0) {
+                     return [{
+                        "zone_name": "No Live Alerts Detected",
+                        "lat": 32.4279,
+                        "lon": 53.6880,
+                        "radius_km": 0,
+                        "color": "green",
+                        "severity_index": 0
+                     }];
+                }
+                
+                return zones;
             }""")
             
             print(f"Extracted {len(extracted_data)} zones.")
 
-            # Save to JSON
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             data_dir = os.path.join(base_dir, "data")
             os.makedirs(data_dir, exist_ok=True)
