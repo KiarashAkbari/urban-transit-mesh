@@ -34,6 +34,9 @@ jobs:
       - name: Probe MahsaNet API (Discovery)
         run: python src/probe_api.py
 
+      - name: Scrape MahsaNet Live Data
+        run: python src/scrape_mahsa.py
+
       - name: Generate Base Map (Step 1)
         run: python src/build_base_map.py
 
