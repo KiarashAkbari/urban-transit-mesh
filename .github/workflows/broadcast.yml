@@ -28,12 +28,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Probe MahsaNet API (Discovery)
-        run: python src/probe_api.py
-
-
       - name: Install Playwright Browsers
         run: playwright install chromium
+
+      - name: Probe MahsaNet API (Discovery)
+        run: python src/probe_api.py
 
       - name: Generate Base Map (Step 1)
         run: python src/build_base_map.py
