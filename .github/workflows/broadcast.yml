@@ -32,7 +32,7 @@ jobs:
         run: playwright install chromium
 
       - name: Generate Base Map (Step 1)
-        run: python src/generate_mesh.py
+        run: python src/build_base_map.py
 
       - name: Compile Offline HTML (Step 2)
         run: python src/compile_offline.py
